@@ -94,7 +94,45 @@ bool ZAppBundle::GetAppIcon(const string& appFolder, string& iconBase64) {
     
     return false;
 }
+bool ZAppBundle::FindAppFolder(const string &strFolder, string &strAppFolder) {
+  return ::FindAppFolder(strFolder, strAppFolder);
+}
 
+bool ZAppBundle::GetSignFolderInfo(const string &strFolder, JValue &jvNode,
+                                   bool bGetName) {
+  JValue jvInfo;
+  string strInfoPlistData;
+  string strInfoPlistPath = strFolder + "/Info.plist";
+  ReadFile(strInfoPlistPath.c_str(), strInfoPlistData);
+  jvInfo.readPList(strInfoPlistData);
+  string strBundleId = jvInfo["CFBundleIdentifier"];
+  string strBundleExe = jvInfo["CFBundleExecutable"];
+  string strBundleVersion = jvInfo["CFBundleVersion"];
+  if (strBundleId.empty() || strBundleExe.empty()) {
+    return false;
+  }
+
+  string strInfoPlistSHA1Base64;
+  string strInfoPlistSHA256Base64;
+  SHASumBase64(strInfoPlistData, strInfoPlistSHA1Base64,
+               strInfoPlistSHA256Base64);
+
+  jvNode["bundle_id"] = strBundleId;
+  jvNode["bundle_version"] = strBundleVersion;
+  jvNode["exec_name"] = strBundleExe;
+  jvNode["sha1"] = strInfoPlistSHA1Base64;
+  jvNode["sha2"] = strInfoPlistSHA256Base64;
+
+  if (bGetName) {
+    string strBundleName = jvInfo["CFBundleDisplayName"];
+    if (strBundleName.empty()) {
+      strBundleName = jvInfo["CFBundleName"].asCString();
+    }
+    jvNode["appname"] = strBundleName;
+  }
+
+  return true;
+}
 bool ZAppBundle::GetAppInfoJson(JValue& jvInfo) {
     if (!FindAppFolder(m_strAppFolder, m_strAppFolder)) {
         ZLog::ErrorV(">>> Can't Find App Folder! %s\n", m_strAppFolder.c_str());
@@ -210,45 +248,7 @@ bool FindAppFolder(const string &strFolder, string &strAppFolder) {
 }
 
 // Class method delegates to the global function
-bool ZAppBundle::FindAppFolder(const string &strFolder, string &strAppFolder) {
-  return ::FindAppFolder(strFolder, strAppFolder);
-}
 
-bool ZAppBundle::GetSignFolderInfo(const string &strFolder, JValue &jvNode,
-                                   bool bGetName) {
-  JValue jvInfo;
-  string strInfoPlistData;
-  string strInfoPlistPath = strFolder + "/Info.plist";
-  ReadFile(strInfoPlistPath.c_str(), strInfoPlistData);
-  jvInfo.readPList(strInfoPlistData);
-  string strBundleId = jvInfo["CFBundleIdentifier"];
-  string strBundleExe = jvInfo["CFBundleExecutable"];
-  string strBundleVersion = jvInfo["CFBundleVersion"];
-  if (strBundleId.empty() || strBundleExe.empty()) {
-    return false;
-  }
-
-  string strInfoPlistSHA1Base64;
-  string strInfoPlistSHA256Base64;
-  SHASumBase64(strInfoPlistData, strInfoPlistSHA1Base64,
-               strInfoPlistSHA256Base64);
-
-  jvNode["bundle_id"] = strBundleId;
-  jvNode["bundle_version"] = strBundleVersion;
-  jvNode["exec_name"] = strBundleExe;
-  jvNode["sha1"] = strInfoPlistSHA1Base64;
-  jvNode["sha2"] = strInfoPlistSHA256Base64;
-
-  if (bGetName) {
-    string strBundleName = jvInfo["CFBundleDisplayName"];
-    if (strBundleName.empty()) {
-      strBundleName = jvInfo["CFBundleName"].asCString();
-    }
-    jvNode["appname"] = strBundleName;
-  }
-
-  return true;
-}
 
 bool ZAppBundle::GetObjectsToSign(const string &strFolder, JValue &jvInfo) {
   DIR *dir = opendir(strFolder.c_str());
